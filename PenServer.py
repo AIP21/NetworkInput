@@ -63,7 +63,7 @@ class PenInputApp(App):
         return self.inputWidget
 
     def on_start(self):
-        host = "192.168.0.128"
+        host = input("Enter this device's ip address: ")
         port = 8080
         
         s = socket.socket()
