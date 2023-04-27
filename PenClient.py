@@ -146,7 +146,7 @@ def processData(inputStr):
             print("Error parsing line: '" + str(line) + "' with error message: " + str(e))
 
 def client():
-    host = "192.168.0.128"
+    host = input("Enter server IP: ")
     port = 8080
     
     print("Looking for server")
