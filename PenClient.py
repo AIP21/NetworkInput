@@ -1,174 +1,409 @@
 import socket
-import macmouse
+import os
+import json
+import pyautogui
+import platform
 
-pressed = False
-dragging = False
-
-startPos = (0, 0)
-dragStart = (0, 0)
-
-WIDTH = 1920
-HEIGHT = 1080
-SCROLL_SPEED = 1
-TOUCH_DRAG_THRESHOLD = 0.1
-
-def setCursorPos(x, y):
-    global pressed, startPos
-    
-    localX = x * WIDTH
-    localY = HEIGHT - (y * HEIGHT)
-    
-    curPos = macmouse.get_position()
-    
-    if curPos == (0, 0):
-        print("FAILSAFE TRIGGERED! Mouse moved to top left corner")
+try:
+    import macmouse as ms
+except:
+    try:
+        import mouse as ms
+    except:
+        print("Error loading macmouse (MacOS only) or mouse (Windows only) module. Please install one of them.")
         exit()
-    elif curPos != (localX, localY) or pressed:
-        if pressed:
-            localY = y * -HEIGHT
-            macmouse.move(startPos[0] + localX, startPos[1] + localY, absolute = True)
-            # print("Moving by: " + str(localX) + ", " + str(startPos[1] + localY))
+
+class PenClient():
+    # Debug mode just makes the program print received data instead of manipulate the mouse
+    DEBUG_MODE = True
+
+    pressed = False
+    dragging = False
+
+    hasSettings = False
+
+    startPos = (0, 0)
+    dragStart = (0, 0)
+    
+    sourceScale = (1920, 1080)
+
+    settingsDict = {
+        "Width" : pyautogui.size()[0],
+        "Height" : pyautogui.size()[1],
+        "Mouse_Scroll_Speed" : 1,
+        "Touch_Scroll_Speed" : 1,
+        "Touch_Drag_Threshold" : 0.1,
+        "Touch_Trackpad_Speed" : 1.0,
+        "Enable_Failsafe" : True,
+        "Last_IP" : "",
+        "Last_Port" : 0,
+    }
+
+    def __init__(self, **kwargs):
+        self.loadSavedSettings()
+        self.client()
+
+    #region Settings
+    def loadSavedSettings(self):
+        # Get local executable path
+        path = os.path.dirname(os.path.realpath(__file__))
+        settingsFilePath = path + "/settings.json"
+
+        if not os.path.isfile(settingsFilePath):
+            self.setVarsFromSettingsDict(self.settingsDict)
+            return
+
+        print("Loading settings")
+
+        with open(settingsFilePath, 'r') as settingsfile:
+            # Reading from json file
+            settingsJsonObject = json.load(settingsfile)
+
+            settingsfile.close()
+
+        self.settingsDict = settingsJsonObject
+
+        self.setVarsFromSettingsDict(settingsJsonObject)
+
+        self.hasSettings = True
+
+        print("Loaded settings")
+
+    def setVarsFromSettingsDict(self, settingsDict):
+        print(str(settingsDict))
+        self.WIDTH = settingsDict["Width"]
+        self.HEIGHT = settingsDict["Height"]
+        self.MOUSE_SCROLL_SPEED = settingsDict["Mouse_Scroll_Speed"]
+        self.TOUCH_SCROLL_SPEED = settingsDict["Touch_Scroll_Speed"]
+        self.TOUCH_DRAG_THRESHOLD = settingsDict["Touch_Drag_Threshold"]
+        self.TOUCH_TRACKPAD_SPEED = settingsDict["Touch_Trackpad_Speed"]
+        self.ENABLE_FAILSAFE = settingsDict["Enable_Failsafe"]
+        self.lastIP = settingsDict["Last_IP"]
+        self.lastPort = settingsDict["Last_Port"]
+
+    def saveSettings(self, notify = True):
+        # Get local executable path
+        path = os.path.dirname(os.path.realpath(__file__))
+        settingsFile = path + "/settings.json"
+
+        # Serializing json
+        jsonObject = json.dumps(self.settingsDict, indent = 4)
+
+        # Writing to sample.json
+        with open(settingsFile, "w") as outfile:
+            outfile.write(jsonObject)
+
+            outfile.close()
+
+        if notify:
+            print("Saved settings")
+
+    def saveAddressAndPort(self, address, port):
+        self.settingsDict["Last_IP"] = address
+        self.settingsDict["Last_Port"] = port
+
+        self.saveSettings(False)
+    #endregion
+
+    #region Computer Input
+    def setCursorPos(self, x, y):
+        localPos = self.remapPos(x, y)
+
+        curPos = ms.get_position()
+        
+        # Check if the resoltion changed for some reason
+        curSize = pyautogui.size()
+        if curSize[0] != self.WIDTH or curSize[1] != self.HEIGHT:
+            self.WIDTH = curSize[0]
+            self.HEIGHT = curSize[1]
+            
+            self.saveSettings(False)
+
+        if curPos == (0, 0) and self.ENABLE_FAILSAFE:
+            print("FAILSAFE TRIGGERED! Mouse moved to top left corner")
+            exit()
+        elif curPos != localPos or self.pressed:
+            if self.pressed:
+                localPos[1] = y * -self.HEIGHT
+                ms.move(self.startPos[0] + localPos[0], self.startPos[1] + localPos[1], absolute = True)
+                # print("Moving by: " + str(localX) + ", " + str(startPos[1] + localY))
+            else:
+                ms.move(localPos[0], localPos[1], absolute = True)
+                # print("Moving to: " + str(localX) + ", " + str(localY))
+
+    # def move(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
+    #     self.pressed = device == "wm_pen" or device == "wm_touch"
+
+    #     if device == "wm_touch":
+    #         if self.pressed:
+    #             # Only drag if the touch moved enough
+    #             if abs(float(pos[0]) - self.dragStart[0]) > self.TOUCH_DRAG_THRESHOLD or abs(float(pos[1]) - self.dragStart[1]) > self.TOUCH_DRAG_THRESHOLD:
+    #                 self.dragging = True
+
+    #     x = float(pos[0]) - self.dragStart[0] if self.pressed else float(pos[0])
+    #     y = float(pos[1]) - self.dragStart[1] if self.pressed else float(pos[1])
+
+    #     self.setCursorPos(x, y)
+
+    # def mouseDown(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
+    #     if device == "wm_pen" or device == "wm_touch":
+    #         if not self.pressed:
+    #             self.startPos = ms.get_position()
+    #             self.dragStart = (float(pos[0]), float(pos[1]))
+
+    #         self.pressed = True
+    #     else:
+    #         self.pressed = False
+
+    #     if device == "wm_pen":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.press(button = 'left')
+    #     elif button == "left":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.press(button = 'left')
+    #     elif button == "right":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.press(button = 'right')
+    #     elif button == "middle":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.press(button = 'middle')
+    #     elif button == "scrolldown":
+    #         ms.wheel(self.MOUSE_SCROLL_SPEED)
+    #     elif button == "scrollup":
+    #         ms.wheel(-self.MOUSE_SCROLL_SPEED)
+
+    # def mouseUp(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
+    #     if device == "wm_touch" and not self.dragging:
+    #         if doubleTap == "True":
+    #             ms.click(button = 'right')
+    #         elif tripleTap == "True":
+    #             ms.click(button = 'middle')
+    #         else:
+    #             ms.click(button = 'left')
+    #     elif button == "None" or device == "wm_pen":
+    #         ms.release(button = 'left')
+    #     elif button == "left":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.release(button = 'left')
+    #     elif button == "right":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.release(button = 'right')
+    #     elif button == "middle":
+    #         self.setCursorPos(float(pos[0]), float(pos[1]))
+    #         ms.release(button = 'middle')
+
+    #     if device == "wm_pen" or device == "wm_touch":
+    #         self.pressed = False
+    #         self.dragging = False
+
+    # Simualate a click
+    def click(self, button):
+        if self.DEBUG_MODE:
+            if button == "left":
+                print("Left click")
+            elif button == "right":
+                print("Right click")
         else:
-            macmouse.move(localX, localY, absolute = True)
-            # print("Moving to: " + str(localX) + ", " + str(localY))
+            if button == "left":
+                ms.click(button = 'left')
+            elif button == "right":
+                ms.click(button = 'right')
 
-def move(pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-    global pressed, dragging
-    
-    pressed = device == "wm_pen" or device == "wm_touch"
-    
-    if device == "wm_touch":
-        if pressed:            
-            # Only drag if the touch moved enough
-            if abs(float(pos[0]) - dragStart[0]) > TOUCH_DRAG_THRESHOLD or abs(float(pos[1]) - dragStart[1]) > TOUCH_DRAG_THRESHOLD:
-                dragging = True
-    
-    x = float(pos[0]) - dragStart[0] if pressed else float(pos[0])
-    y = float(pos[1]) - dragStart[1] if pressed else float(pos[1])
-    
-    setCursorPos(x, y)
+    # Simulate horizontal and vertical scrolling
+    def scroll(self, touch, deltaX, deltaY, velX, velY, originPos = None):
+        pos = self.remapPos(touch["pos"] if originPos == None else originPos)
 
-def down(pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-    global pressed, startPos, dragStart
-    
-    if device == "wm_pen" or device == "wm_touch":
-        if not pressed:
-            startPos = macmouse.get_position()
-            dragStart = (float(pos[0]), float(pos[1]))
-        
-        pressed = True
-    else:
-        pressed = False
-    
-    if device == "wm_pen":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.press(button = 'left')
-    elif button == "left":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.press(button = 'left')
-    elif button == "right":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.press(button = 'right')
-    elif button == "middle":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.press(button = 'middle')
-    elif button == "scrolldown":
-        macmouse.wheel(SCROLL_SPEED)
-    elif button == "scrollup":
-        macmouse.wheel(-SCROLL_SPEED)
+        mult = self.TOUCH_SCROLL_SPEED if touch["device"] == "wm_touch" else self.MOUSE_SCROLL_SPEED
 
-def up(pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-    global pressed, dragging
-    
-    if device == "wm_touch" and not dragging:
-        if doubleTap == "True":
-            macmouse.click(button = 'right')
-        elif tripleTap == "True":
-            macmouse.click(button = 'middle')
+        if self.DEBUG_MODE:
+            print("Scrolling: " + str(deltaX) + ", " + str(deltaY) + " at " + str(pos) + " with velocity: " + str(velX) + ", " + str(velY))
         else:
-            macmouse.click(button = 'left')
-    elif button == "None" or device == "wm_pen":
-        macmouse.release(button = 'left')
-    elif button == "left":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.release(button = 'left')
-    elif button == "right":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.release(button = 'right')
-    elif button == "middle":
-        setCursorPos(float(pos[0]), float(pos[1]))
-        macmouse.release(button = 'middle')
+            if deltaX != 0:
+                pyautogui.hscroll(deltaX * mult, pos)
+
+            if deltaY != 0:
+                pyautogui.vscroll(deltaY * mult, pos)
+
+    # Simualate zooming
+    def zoom(self, touch, centerPos, deltaScale):
+        centerPos = self.remapPos(centerPos)
+        
+        if self.DEBUG_MODE:
+            print("Zooming: " + str(deltaScale) + " at " + str(centerPos))
+        else:
+            # If on mac, command + scroll to zoom
+            if platform.system() == "Darwin":
+                pyautogui.keyDown("command")
+                self.scroll(touch, 0, deltaScale, 0, 1, centerPos)
+                pyautogui.keyUp("command")
+            else:
+                # Otherwise, use ctrl + scroll
+                pyautogui.keyDown("ctrl")
+                self.scroll(touch, 0, deltaScale, 0, 1, centerPos)
+                pyautogui.keyUp("ctrl")
     
-    if device == "wm_pen" or device == "wm_touch":
-        pressed = False
-        dragging = False
+    def mouseDown(self, button):
+        if self.DEBUG_MODE:
+            print("Mouse down: " + button)
+        else:
+            ms.press(button = button)
     
-def processData(inputStr):
-    # print(inputStr)
-    lines = inputStr.split("\n")
-        
-    for line in lines:
-        if line == '':
-            continue
-        
-        split = line.split(":")
-        
-        if len(split) < 2:
-            continue
-        
-        inputType = split[0]
-        inputData = split[1].split(",")
-        
-        if len(inputData) < 8:
-            continue
-        
+    def mouseUp(self, button):
+        if self.DEBUG_MODE:
+            print("Mouse up: " + button)
+        else:
+            ms.release(button = button)
+    
+
+    def processData(self, inputStr):
         try:
-            pos = (inputData[0], inputData[1])
-            button = inputData[2]
-            device = inputData[3]
-            scrolling = inputData[4]
-            doubleTap = inputData[5]
-            tripleTap = inputData[6]
-            shapeW = 0
-            shapeH = 0
-            
-            if inputData[7] != "None":
-                shapeW = inputData[7]
-                shapeH = inputData[8]
-            
-            if inputType == "Move":
-                move(pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH)
-            elif inputType == "Down":
-                down(pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH)
-            elif inputType == "Up":
-                up(pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH)
-        except Exception as e:
-            print("Error parsing line: '" + str(line) + "' with error message: " + str(e))
+            # Fix a weird bug where multiple JSON objects are sent at once
+            if "}{" in inputStr:
+                index = inputStr.index("}{")
 
-def client():
-    host = input("Enter server IP: ")
-    port = int(input("Enter server port: "))
+                # Reprocess any other data after the }
+                self.processData(inputStr[index + 1:])
+
+                # Process the first part of the data
+                inputStr = inputStr[:index + 1]
+
+            jsonData = json.loads(inputStr)
+
+            inputType = jsonData["type"]
+            jsonData.pop("type")
+            touch0 = jsonData["touch0"]
+            jsonData.pop("touch0")
+            touch1 = jsonData["touch1"]
+            jsonData.pop("touch1")
+            self.sourceSize = jsonData["screenSize"]
+            jsonData.pop("screenSize")
+
+            if inputType == "ClickPrimary":
+                # print("ClickPrimary: " + str(jsonData))
+
+                self.click(button = 'left')
+
+            elif inputType == "ClickSecondary":
+                # print("ClickSecondary: " + str(jsonData))
+
+                self.click(button = 'right')
+
+            elif inputType == "LongPressDown":
+                # print("TouchClick: " + str(jsonData))
+
+                self.mouseDown(button = 'left')
+                # print("Long press started")
+
+            elif inputType == "LongPressUp":
+                # print("LongPressUp: " + str(jsonData))
+                
+                if jsonData["fromDrag"] == True:
+                    self.mouseUp(button = 'left')
+                else:
+                    self.click(button = 'right')
+
+            elif inputType == "Drag":
+                print("Drag: " + str(jsonData))
+                
+
+            elif inputType == "Scroll":
+                # print("Scroll: " + str(jsonData))
+
+                self.scroll(touch0, 0, jsonData["deltaY"], 0, jsonData["vel"])
+
+            elif inputType == "Pan":
+                # print("Pan: " + str(jsonData))
+
+                self.scroll(touch0, jsonData["deltaX"], 0, jsonData["vel"], 0)
+
+            elif inputType == "Zoom":
+                # print("Zoom: " + str(jsonData))
+                
+                self.zoom(touch0, jsonData["centerPos"], jsonData["deltaScale"])
+
+            elif inputType == "MouseHover":
+                print("MouseHover: " + str(jsonData))
+
+        except Exception as e:
+            print("Error parsing input. Message: " + str(e) + " String: " + inputStr)
+    #endregion
+
+    #region Utils
+    def remap(self, val, min1, max1, min2, max2):
+        return min2 + (max2 - min2) * ((val - min1) / (max1 - min1))
+
+    def remapPos(self, x, y):
+        return (self.remap(x, 0, self.sourceSize[0], 0, self.WIDTH), self.remap(y, 0, self.sourceSize[1], 0, self.HEIGHT))
+
+    def remapPos(self, pos):
+        return (self.remap(pos[0], 0, self.sourceSize[0], 0, self.WIDTH), self.HEIGHT - self.remap(pos[1], 0, self.sourceSize[1], 0, self.HEIGHT))
+
+    def askYesNoQuestion(self, question):
+        answer = str.lower(input(question + " (y/n) "))
+
+        yes = answer == "y" or answer == "yes"
+        no = answer == "n" or answer == "no"
+
+        if not yes and not no:
+            print("Invalid input, type 'y' or 'yes' for YES, and 'n' or 'no' for NO.")
+            return self.askYesNoQuestion(question)
+
+        return yes
+    #endregion
     
-    print("Looking for server")
     
-    serverSocket = socket.socket()
-    serverSocket.connect((host, port))
-    
-    print("Connected to server: " + host + ":" + str(port))
-    
-    running = True
-    
-    while running == True:
-        data = serverSocket.recv(1024).decode('utf-8')
-        
-        if not data:
-            break
-        
-        processData(data)
-    
-    print("Connection closed by server")
-    
-    serverSocket.close()
+    def client(self):
+        if self.hasSettings:
+            print("Loaded saved IP: " + self.lastIP + " with port: " + str(self.lastPort))
+
+            useOldVals = self.askYesNoQuestion("Use these values?")
+
+            if useOldVals:
+                host = self.lastIP
+                port = self.lastPort
+            else:
+                host = input("Enter server IP: ")
+                port = int(input("Enter server port: "))
+
+                if self.askYesNoQuestion("Save these values?"):
+                    self.saveAddressAndPort(host, port)
+        else:
+            print("No saved file found, please enter the server IP and port")
+            host = input("Enter server IP: ")
+            port = int(input("Enter server port: "))
+
+            if self.askYesNoQuestion("Save these values?"):
+                self.saveAddressAndPort(host, port)
+
+        print("Looking for server")
+
+        serverSocket = socket.socket()
+        serverSocket.connect((host, port))
+
+        print("Connected to server: " + host + ":" + str(port))
+
+        running = True
+
+        while running == True:
+            try:
+                data = serverSocket.recv(1024).decode('utf-8')
+            except:
+                print("Connection closed by server")
+                break
+
+            if not data:
+                print("Connection closed by server")
+                break
+
+            self.processData(data)
+
+        serverSocket.close()
+
+        if self.askYesNoQuestion("Reconnect?"):
+            print("")
+            self.client()
+        else:
+            self.saveSettings()
 
 if __name__ == '__main__':
-    client()
+    PenClient()

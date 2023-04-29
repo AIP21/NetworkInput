@@ -1,0 +1,11 @@
+{
+    "Width": 1920,
+    "Height": 1080,
+    "Mouse_Scroll_Speed": 1,
+    "Touch_Scroll_Speed": 1,
+    "Touch_Drag_Threshold": 0.1,
+    "Touch_Trackpad_Speed": 1.0,
+    "Enable_Failsafe": true,
+    "Last_IP": "192.168.0.190",
+    "Last_Port": 9090
+}
