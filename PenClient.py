@@ -131,9 +131,8 @@ class PenClient():
                 ms.move(localPos[0], localPos[1], absolute = True)
                 # print("Moving to: " + str(localX) + ", " + str(localY))
 
-    def mouseMove(self, touch):
-        device = touch["device"]
-        pos = self.remapPos(touch["pos"])
+    def mouseMove(self, device, pos):
+        pos = self.remapPos(pos)
         self.pressed = device == "wm_pen" or device == "wm_touch"
 
         if device == "wm_touch":
@@ -298,6 +297,8 @@ class PenClient():
                 self.click(button = 'right', touch = touch0)
 
             elif inputType == "ClickMiddle":
+                print("ClickMiddle: " + str(jsonData))
+                
                 self.click(button = 'middle', touch = touch0)
 
             elif inputType == "LongPressDown":
@@ -317,6 +318,7 @@ class PenClient():
             elif inputType == "Drag":
                 print("Drag: " + str(jsonData))
                 
+                self.mouseMove(touch0["device"], self.remapPos(jsonData["pos"]))
 
             elif inputType == "Scroll":
                 # print("Scroll: " + str(jsonData))
@@ -336,7 +338,7 @@ class PenClient():
             elif inputType == "MouseHover":
                 # print("MouseHover: " + str(jsonData))
                 
-                self.mouseMove(touch0)
+                self.mouseMove("", self.remapPos(jsonData["pos"]))
 
         except Exception as e:
             print("Error parsing input. Message: " + str(e) + " String: " + inputStr)
