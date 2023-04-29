@@ -1,5 +1,5 @@
 import os
-os.environ['KIVY_NO_CONSOLELOG'] = '1'
+#os.environ['KIVY_NO_CONSOLELOG'] = '1'
 
 import socket
 from kivy.app import App
@@ -17,7 +17,8 @@ Config.set('input', 'mouse', 'mouse, multitouch_on_demand')
 class InputWidget(Screen, CommonGestures):
     clientSocket = None
     
-    touchDrag = False
+    dragging = False
+    longPress = False
     
     def __init__(self, hostIP, hostPort, **args):
         super().__init__(**args)
@@ -27,66 +28,89 @@ class InputWidget(Screen, CommonGestures):
         self.add_widget(self.label)
     
     #region Input Methods
-    # def on_mouse_pos(self, instance, pos):
-    #     if (self.clientSocket == None):
-    #         return
+    def on_mouse_pos(self, instance, pos):
+        if (self.clientSocket == None):
+            return
         
-    #     data = "Move:" + str(pos[0] / self.width) + "," + str(pos[1] / self.height) + ",None,mouseHover,False,False,False,None" + "\n"
+        # print("MouseHover")
+        
+        self.sendDataToClient("MouseHover", None, None, [("pos", pos)])
     
-    #     self.clientSocket.send(data.encode('utf-8'))
+    def on_touch_down(self, touch):
+        # print("ClickDown")
+        
+        # self.sendDataToClient("ClickDown", touch, None, [])
+        
+        super().on_touch_down(touch)
+        
+    # def on_touch_move(self, touch):        
+    #     print("Move")
+        
+    #     self.sendDataToClient("Move", touch, None, [])
     
-    # def on_touch_down(self, touch):
-    #     if (self.clientSocket == None):
-    #         return
-        
-    #     data = "Down:" + self.touchInfo(touch) + "\n"
-        
-    #     self.clientSocket.send(data.encode('utf-8'))
-        
-    # def on_touch_move(self, touch):
-    #     if (self.clientSocket == None):
-    #         return
-        
-    #     data = "Move:" + self.touchInfo(touch) + "\n"
-        
-    #     self.clientSocket.send(data.encode('utf-8'))
+    #     super().on_touch_move(touch)
     
-    # def on_touch_up(self, touch):
-    #     if (self.clientSocket == None):
-    #         return
+    def on_touch_up(self, touch):
+        # print("ClickUp")
         
-    #     data = "Up:" + self.touchInfo(touch) + "\n"
+        # self.sendDataToClient("ClickUp", touch, None, [])
+        self.dragging = False
         
-    #     self.clientSocket.send(data.encode('utf-8'))
+        super().on_touch_up(touch)
     
-    
-    def cgb_select(self, touch, focus_x, focus_y, long_press):        
-        print("Select: " + str(long_press))
+    def cgb_primary(self, touch, focus_x, focus_y):
+        # print("ClickPrimary")
         
-        self.sendDataToClient("SelectDown", touch, focus_x, focus_y, None, [("longPress", long_press)])
+        self.sendDataToClient("ClickPrimary", touch, None, [])
+    
+    def cgb_secondary(self, touch, focus_x, focus_y):
+        # print("ClickSecondary")
+        
+        self.sendDataToClient("ClickSecondary", touch, None, [])
+    
+    def cgb_select(self, touch, focus_x, focus_y, long_press):
+        # print("TouchClick: " + str(long_press))
+        
+        self.dragging = False
+        
+        if long_press:
+            self.longPress = True
+        else:
+            self.longPress = False
     
     def cgb_long_press_end(self, touch, focus_x, focus_y):
-        if (self.touchDrag):
-            print("drag ended")
-            self.touchDrag = False
-        else:
-            print("long press end")
+        # print("Long press" + (" DRAG" if self.dragging else "") +  " ended")
             
-            self.sendDataToClient("SelectLongUp", touch, focus_x, focus_y, None, [])
+        self.sendDataToClient("LongPressUp", touch, None, [("fromDrag", self.dragging)])
+
+        self.dragging = False
+        self.longPress = False
     
     def cgb_drag(self, touch, focus_x, focus_y, delta_x, delta_y):
-        self.touchDrag = True
+        self.dragging = True
         
-        self.sendDataToClient("Drag", touch, focus_x, focus_y, None, [("deltaX", delta_x), ("deltaY", delta_y)])
+        if self.longPress:
+            self.longPress = False
+            self.sendDataToClient("LongPressDown", touch, None, [])
+        
+        # print("Drag")
+        
+        self.sendDataToClient("Drag", touch, None, [("deltaX", delta_x), ("deltaY", delta_y)])
     
     def cgb_scroll(self, touch, focus_x, focus_y, delta_y, velocity):
-        self.sendDataToClient("Scroll", touch, focus_x, focus_y, None, [("deltaY", delta_y), ("vel", velocity)])
+        if not self.dragging:
+            # print("Scroll")
+            self.sendDataToClient("Scroll", touch, None, [("deltaY", delta_y), ("vel", velocity)])
     
     def cgb_pan(self, touch, focus_x, focus_y, delta_x, velocity):
-        self.sendDataToClient("Pan", touch, focus_x, focus_y, None, [("deltaX", delta_x), ("vel", velocity)])
+        if not self.dragging:
+            # print("Pan")
+            self.sendDataToClient("Pan", touch, None, [("deltaX", delta_x), ("vel", velocity)])
     
     def cgb_zoom(self, touch0, touch1, focus_x, focus_y, delta_scale):
-        self.sendDataToClient("Zoom", touch0, focus_x, focus_y, touch1, [("deltaScale", delta_scale)])
+        if not self.dragging:
+            # print("Zoom")
+            self.sendDataToClient("Zoom", touch0, touch1, [("centerPos", (focus_x, focus_y)), ("deltaScale", delta_scale)])
     #endregion
     
     #region Input Data
@@ -100,43 +124,37 @@ class InputWidget(Screen, CommonGestures):
         
     #     return info
     
-    def touchInfo(self, touch, x, y):
+    def touchInfo(self, touch):
         if touch == None:
             return None
         
         infoDict = {
-            "pos" : (x, y),
-            "screenSize" : (self.width, self.height),
+            "pos" : (touch.pos[0], touch.pos[1]),
             "button" : touch.button,
             "device" : touch.device,
             "shape" : (touch.shape.width, touch.shape.height) if touch.shape != None else None
         }
         
-        return str(infoDict)
+        return infoDict
 
-    def compileDataIntoJson(self, type, touch0, x, y, touch1, otherData):
+    def compileDataIntoJson(self, type, touch0, touch1, otherData):
         dataDict = {}
         
         dataDict['type'] = type
-        dataDict['touch0'] = self.touchInfo(touch0, x, y)
-        dataDict['touch1'] = self.touchInfo(touch1, x, y)
-        dataDict['x'] = x
-        dataDict['y'] = y
+        dataDict['touch0'] = self.touchInfo(touch0)
+        dataDict['touch1'] = self.touchInfo(touch1)
+        dataDict["screenSize"] = (self.width, self.height)
         
         for pair in otherData:
             dataDict[pair[0]] = pair[1]
         
         return dataDict
     
-    def sendDataToClient(self, type, touch0, x, y, touch1, otherData):
-        # data = self.compileDataIntoJson(type, touch0, x, y, touch1, otherData)
-        
-        # print(data)
-        
+    def sendDataToClient(self, type, touch0, touch1, otherData):
         if (self.clientSocket == None):
             return
         
-        data = self.compileDataIntoJson(type, touch0, x, y, touch1, otherData)
+        data = self.compileDataIntoJson(type, touch0,touch1, otherData)
 
         jsobObj = json.dumps(data, indent = 4)
         
@@ -153,10 +171,12 @@ class PenInputApp(App):
         self.host = str(socket.gethostbyname(socket.gethostname()))
         self.port = 9090
         
+        print("Server started at: " + self.host + " on port: " + str(self.port))
+        
         self.inputWidget = InputWidget(hostIP = self.host, hostPort = str(self.port))
+        Window.bind(mouse_pos = self.inputWidget.on_mouse_pos)
         
         self.sm.add_widget(self.inputWidget)
-        # Window.bind(mouse_pos = self.inputWidget.on_mouse_pos)
         
         self.waitThread = threading.Thread(target = self.waitConnect)
         self.waitThread.start()
