@@ -124,7 +124,7 @@ class PenClient():
             exit()
         elif curPos != localPos or self.pressed:
             if self.pressed:
-                ms.move(self.startPos[0] + localPos[0], self.startPos[1] - localPos[1], absolute = True)
+                ms.move(self.startPos[0] + localPos[0], self.startPos[1] +localPos[1], absolute = True)
                 # print("Moving by: " + str(localX) + ", " + str(startPos[1] + localY))
             else:
                 ms.move(localPos[0], localPos[1], absolute = True)
@@ -143,7 +143,7 @@ class PenClient():
         if device == "wm_touch":
             if self.pressed:
                 # Only drag if the touch moved enough
-                if deltaX**2 + deltaY**2 > self.TOUCH_DRAG_THRESHOLD:
+                if deltaX**2 + deltaY**2 > self.TOUCH_DRAG_THRESHOLD * self.TOUCH_DRAG_THRESHOLD:
                     self.dragging = True
                 else:
                     deltaX = 0
@@ -184,7 +184,7 @@ class PenClient():
             else:
                 self.pressed = False
             
-            ms.press(button = button)
+                ms.press(button = button)
     
     # Simualate a button release
     def mouseUp(self, button, touch):
@@ -256,20 +256,13 @@ class PenClient():
             self.sourceSize = jsonData["screenSize"]
             jsonData.pop("screenSize")
 
-            if inputType == "ClickPrimary":
-                print("ClickPrimary: " + str(jsonData))
+            if inputType == "Click":
+                print("Click: " + str(jsonData))
 
-                self.click(button = 'left', touch = touch0)
+                self.click(button = touch0["button"], touch = touch0)
 
-            elif inputType == "ClickSecondary":
-                print("ClickSecondary: " + str(jsonData))
-
-                self.click(button = 'right', touch = touch0)
-
-            elif inputType == "ClickMiddle":
-                print("ClickMiddle: " + str(jsonData))
-                
-                self.click(button = 'middle', touch = touch0)
+            elif inputType == "TouchDown":
+                self.mouseDown(button = touch0["button"], touch = touch0)
 
             elif inputType == "LongPressDown":
                 # Only called when a long press drag STARTS!!
@@ -292,9 +285,9 @@ class PenClient():
             elif inputType == "Drag":
                 print("Drag: " + str(jsonData))
                 
-                if not self.dragging:
+                if not self.dragging and touch0["device"] != "mouse" and (jsonData["deltaX"] > self.TOUCH_DRAG_THRESHOLD or jsonData["deltaY"] > self.TOUCH_DRAG_THRESHOLD):
                     self.dragging = True
-                    self.dragStart = self.remapPos(touch0["pos"])
+                    self.mouseDown(button = 'left', touch = touch0)
                 
                 self.mouseMove(touch0["device"], touch0["pos"])
 

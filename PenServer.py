@@ -39,7 +39,10 @@ class InputWidget(Screen, CommonGestures):
         # print("ClickDown")
         
         if touch.button == 'middle':
-            self.sendDataToClient("ClickMiddle", touch, None, [])
+            self.sendDataToClient("Click", touch, None, [])
+        
+        if touch.device == 'mouse':
+            self.sendDataToClient("TouchDown", touch, None, [])
         
         super().on_touch_down(touch)
     
@@ -54,12 +57,12 @@ class InputWidget(Screen, CommonGestures):
     def cgb_primary(self, touch, focus_x, focus_y):
         # print("ClickPrimary")
         
-        self.sendDataToClient("ClickPrimary", touch, None, [])
+        self.sendDataToClient("Click", touch, None, [])
     
     def cgb_secondary(self, touch, focus_x, focus_y):
         # print("ClickSecondary")
         
-        self.sendDataToClient("ClickSecondary", touch, None, [])
+        self.sendDataToClient("Click", touch, None, [])
         
     def cgb_select(self, touch, focus_x, focus_y, long_press):
         # print("TouchClick: " + str(long_press))
