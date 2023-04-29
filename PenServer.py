@@ -20,6 +20,8 @@ class InputWidget(Screen, CommonGestures):
     dragging = False
     longPress = False
     
+    DRAG_THRESHOLD = 10
+    
     def __init__(self, hostIP, hostPort, **args):
         super().__init__(**args)
         
@@ -42,13 +44,6 @@ class InputWidget(Screen, CommonGestures):
         # self.sendDataToClient("ClickDown", touch, None, [])
         
         super().on_touch_down(touch)
-        
-    # def on_touch_move(self, touch):        
-    #     print("Move")
-        
-    #     self.sendDataToClient("Move", touch, None, [])
-    
-    #     super().on_touch_move(touch)
     
     def on_touch_up(self, touch):
         # print("ClickUp")
@@ -87,6 +82,9 @@ class InputWidget(Screen, CommonGestures):
         self.longPress = False
     
     def cgb_drag(self, touch, focus_x, focus_y, delta_x, delta_y):
+        if delta_x**2 + delta_y**2 < self.DRAG_THRESHOLD:
+            return
+        
         self.dragging = True
         
         if self.longPress:
@@ -114,16 +112,6 @@ class InputWidget(Screen, CommonGestures):
     #endregion
     
     #region Input Data
-    # def touchInfo(self, touch, focusX, focusY):
-    #     info = str(touch.pos[0] / self.width) + "," + str(touch.pos[1] / self.height) + "," + str(touch.button) + "," + str(touch.device) + "," + str(touch.is_mouse_scrolling) + "," + str(touch.is_double_tap) + "," + str(touch.is_triple_tap) + ","
-        
-    #     if (touch.shape != None):
-    #         info += str(touch.shape.width) + "," + str(touch.shape.height)
-    #     else:
-    #         info += "None"
-        
-    #     return info
-    
     def touchInfo(self, touch):
         if touch == None:
             return None
