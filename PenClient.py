@@ -131,29 +131,24 @@ class PenClient():
                 ms.move(localPos[0], localPos[1], absolute = True)
                 # print("Moving to: " + str(localX) + ", " + str(localY))
 
-    # def move(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-    #     self.pressed = device == "wm_pen" or device == "wm_touch"
+    def mouseMove(self, touch):
+        device = touch["device"]
+        pos = self.remapPos(touch["pos"])
+        self.pressed = device == "wm_pen" or device == "wm_touch"
 
-    #     if device == "wm_touch":
-    #         if self.pressed:
-    #             # Only drag if the touch moved enough
-    #             if abs(float(pos[0]) - self.dragStart[0]) > self.TOUCH_DRAG_THRESHOLD or abs(float(pos[1]) - self.dragStart[1]) > self.TOUCH_DRAG_THRESHOLD:
-    #                 self.dragging = True
+        if device == "wm_touch":
+            if self.pressed:
+                # Only drag if the touch moved enough
+                if abs(float(pos[0]) - self.dragStart[0]) > self.TOUCH_DRAG_THRESHOLD or abs(float(pos[1]) - self.dragStart[1]) > self.TOUCH_DRAG_THRESHOLD:
+                    self.dragging = True
 
-    #     x = float(pos[0]) - self.dragStart[0] if self.pressed else float(pos[0])
-    #     y = float(pos[1]) - self.dragStart[1] if self.pressed else float(pos[1])
+        x = float(pos[0]) - self.dragStart[0] if self.pressed else float(pos[0])
+        y = float(pos[1]) - self.dragStart[1] if self.pressed else float(pos[1])
 
-    #     self.setCursorPos(x, y)
+        self.setCursorPos(x, y)
 
     # def mouseDown(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-    #     if device == "wm_pen" or device == "wm_touch":
-    #         if not self.pressed:
-    #             self.startPos = ms.get_position()
-    #             self.dragStart = (float(pos[0]), float(pos[1]))
 
-    #         self.pressed = True
-    #     else:
-    #         self.pressed = False
 
     #     if device == "wm_pen":
     #         self.setCursorPos(float(pos[0]), float(pos[1]))
@@ -192,10 +187,6 @@ class PenClient():
     #         self.setCursorPos(float(pos[0]), float(pos[1]))
     #         ms.release(button = 'middle')
 
-    #     if device == "wm_pen" or device == "wm_touch":
-    #         self.pressed = False
-    #         self.dragging = False
-
     # Simualate a click
     def click(self, button):
         if self.DEBUG_MODE:
@@ -208,6 +199,36 @@ class PenClient():
                 ms.click(button = 'left')
             elif button == "right":
                 ms.click(button = 'right')
+
+    # Simualate a button press
+    def mouseDown(self, button, touch):
+        if self.DEBUG_MODE:
+            print("Mouse down: " + button)
+        else:
+            device = touch["device"]
+            pos = self.remapPos(touch["pos"])
+            
+            if device == "wm_pen" or device == "wm_touch":
+                if not self.pressed:
+                    self.startPos = ms.get_position()
+                    self.dragStart = (float(pos[0]), float(pos[1]))
+
+                self.pressed = True
+            else:
+                self.pressed = False
+            
+            ms.press(button = button)
+    
+    # Simualate a button release
+    def mouseUp(self, button, touch):
+        if self.DEBUG_MODE:
+            print("Mouse up: " + button)
+        else:
+            device = touch["device"]
+            if device == "wm_pen" or device == "wm_touch":
+                self.pressed = False
+                self.dragging = False
+            ms.release(button = button)
 
     # Simulate horizontal and vertical scrolling
     def scroll(self, touch, deltaX, deltaY, velX, velY, originPos = None):
@@ -242,19 +263,7 @@ class PenClient():
                 self.scroll(touch, 0, deltaScale, 0, 1, centerPos)
                 pyautogui.keyUp("ctrl")
     
-    def mouseDown(self, button):
-        if self.DEBUG_MODE:
-            print("Mouse down: " + button)
-        else:
-            ms.press(button = button)
-    
-    def mouseUp(self, button):
-        if self.DEBUG_MODE:
-            print("Mouse up: " + button)
-        else:
-            ms.release(button = button)
-    
-
+    # Process data from the server
     def processData(self, inputStr):
         try:
             # Fix a weird bug where multiple JSON objects are sent at once
@@ -279,28 +288,31 @@ class PenClient():
             jsonData.pop("screenSize")
 
             if inputType == "ClickPrimary":
-                # print("ClickPrimary: " + str(jsonData))
+                print("ClickPrimary: " + str(jsonData))
 
-                self.click(button = 'left')
+                self.click(button = 'left', touch = touch0)
 
             elif inputType == "ClickSecondary":
-                # print("ClickSecondary: " + str(jsonData))
+                print("ClickSecondary: " + str(jsonData))
 
-                self.click(button = 'right')
+                self.click(button = 'right', touch = touch0)
+
+            elif inputType == "ClickMiddle":
+                self.click(button = 'middle', touch = touch0)
 
             elif inputType == "LongPressDown":
                 # print("TouchClick: " + str(jsonData))
 
-                self.mouseDown(button = 'left')
+                self.mouseDown(button = 'left', touch = touch0)
                 # print("Long press started")
 
             elif inputType == "LongPressUp":
                 # print("LongPressUp: " + str(jsonData))
                 
                 if jsonData["fromDrag"] == True:
-                    self.mouseUp(button = 'left')
+                    self.mouseUp(button = 'left', touch = touch0)
                 else:
-                    self.click(button = 'right')
+                    self.click(button = 'right', touch = touch0)
 
             elif inputType == "Drag":
                 print("Drag: " + str(jsonData))
@@ -322,7 +334,9 @@ class PenClient():
                 self.zoom(touch0, jsonData["centerPos"], jsonData["deltaScale"])
 
             elif inputType == "MouseHover":
-                print("MouseHover: " + str(jsonData))
+                # print("MouseHover: " + str(jsonData))
+                
+                self.mouseMove(touch0)
 
         except Exception as e:
             print("Error parsing input. Message: " + str(e) + " String: " + inputStr)
