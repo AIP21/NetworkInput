@@ -106,8 +106,8 @@ class PenClient():
     #endregion
 
     #region Computer Input
-    def setCursorPos(self, x, y):
-        localPos = self.remapPos(x, y)
+    def setCursorPos(self, pos):
+        localPos = pos
 
         curPos = ms.get_position()
         
@@ -120,19 +120,21 @@ class PenClient():
             self.saveSettings(False)
 
         if curPos == (0, 0) and self.ENABLE_FAILSAFE:
-            print("FAILSAFE TRIGGERED! Mouse moved to top left corner")
+            print("FAILSAFE TRIGGERED! Mouse moved to top left corner. This can be disabled in settings.txt")
             exit()
         elif curPos != localPos or self.pressed:
             if self.pressed:
-                localPos[1] = y * -self.HEIGHT
+                localPos[1] = pos[1] * -self.HEIGHT
                 ms.move(self.startPos[0] + localPos[0], self.startPos[1] + localPos[1], absolute = True)
                 # print("Moving by: " + str(localX) + ", " + str(startPos[1] + localY))
             else:
                 ms.move(localPos[0], localPos[1], absolute = True)
                 # print("Moving to: " + str(localX) + ", " + str(localY))
 
-    def mouseMove(self, device, pos):
-        pos = self.remapPos(pos)
+    def mouseMove(self, device, position):
+        pos = self.remapPos(position)
+        print("Mouse move: " + str(pos))
+        
         self.pressed = device == "wm_pen" or device == "wm_touch"
 
         if device == "wm_touch":
@@ -144,7 +146,7 @@ class PenClient():
         x = float(pos[0]) - self.dragStart[0] if self.pressed else float(pos[0])
         y = float(pos[1]) - self.dragStart[1] if self.pressed else float(pos[1])
 
-        self.setCursorPos(x, y)
+        self.setCursorPos((x, y))
 
     # def mouseDown(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
 
@@ -187,17 +189,18 @@ class PenClient():
     #         ms.release(button = 'middle')
 
     # Simualate a click
-    def click(self, button):
+    def click(self, button, touch):
         if self.DEBUG_MODE:
             if button == "left":
                 print("Left click")
             elif button == "right":
                 print("Right click")
         else:
-            if button == "left":
-                ms.click(button = 'left')
-            elif button == "right":
-                ms.click(button = 'right')
+            if touch["device"] == "mouse":
+                if button == "left":
+                    ms.click(button = 'left')
+                elif button == "right":
+                    ms.click(button = 'right')
 
     # Simualate a button press
     def mouseDown(self, button, touch):
@@ -318,7 +321,7 @@ class PenClient():
             elif inputType == "Drag":
                 print("Drag: " + str(jsonData))
                 
-                self.mouseMove(touch0["device"], self.remapPos(jsonData["pos"]))
+                self.mouseMove(touch0["device"], jsonData["pos"])
 
             elif inputType == "Scroll":
                 # print("Scroll: " + str(jsonData))
@@ -338,18 +341,15 @@ class PenClient():
             elif inputType == "MouseHover":
                 # print("MouseHover: " + str(jsonData))
                 
-                self.mouseMove("", self.remapPos(jsonData["pos"]))
+                self.mouseMove("", jsonData["pos"])
 
         except Exception as e:
-            print("Error parsing input. Message: " + str(e) + " String: " + inputStr)
+            print("\nError parsing input! Message: " + str(e) + "  \n:::  String: " + inputStr)
     #endregion
 
     #region Utils
     def remap(self, val, min1, max1, min2, max2):
         return min2 + (max2 - min2) * ((val - min1) / (max1 - min1))
-
-    def remapPos(self, x, y):
-        return (self.remap(x, 0, self.sourceSize[0], 0, self.WIDTH), self.remap(y, 0, self.sourceSize[1], 0, self.HEIGHT))
 
     def remapPos(self, pos):
         return (self.remap(pos[0], 0, self.sourceSize[0], 0, self.WIDTH), self.HEIGHT - self.remap(pos[1], 0, self.sourceSize[1], 0, self.HEIGHT))

@@ -31,9 +31,6 @@ class InputWidget(Screen, CommonGestures):
     
     #region Input Methods
     def on_mouse_pos(self, instance, pos):
-        if (self.clientSocket == None):
-            return
-        
         # print("MouseHover")
         
         self.sendDataToClient("MouseHover", None, None, [("pos", pos)])
@@ -41,7 +38,8 @@ class InputWidget(Screen, CommonGestures):
     def on_touch_down(self, touch):
         # print("ClickDown")
         
-        self.sendDataToClient("ClickMiddle", touch, None, [])
+        if touch.button == 'middle':
+            self.sendDataToClient("ClickMiddle", touch, None, [])
         
         super().on_touch_down(touch)
     
