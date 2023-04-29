@@ -262,7 +262,8 @@ class PenClient():
                 self.click(button = touch0["button"], touch = touch0)
 
             elif inputType == "TouchDown":
-                self.mouseDown(button = touch0["button"], touch = touch0)
+                if touch0["device"] != "mouse":
+                    self.mouseDown(button = touch0["button"], touch = touch0)
 
             elif inputType == "LongPressDown":
                 # Only called when a long press drag STARTS!!
