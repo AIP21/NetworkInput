@@ -20,7 +20,7 @@ class InputWidget(Screen, CommonGestures):
     dragging = False
     longPress = False
     
-    DRAG_THRESHOLD = 10
+    DRAG_THRESHOLD = 2
     
     def __init__(self, hostIP, hostPort, **args):
         super().__init__(**args)
@@ -65,11 +65,7 @@ class InputWidget(Screen, CommonGestures):
         # print("TouchClick: " + str(long_press))
         
         self.dragging = False
-        
-        if long_press:
-            self.longPress = True
-        else:
-            self.longPress = False
+        self.longPress = long_press
     
     def cgb_long_press_end(self, touch, focus_x, focus_y):
         # print("Long press" + (" DRAG" if self.dragging else "") +  " ended")
@@ -80,7 +76,7 @@ class InputWidget(Screen, CommonGestures):
         self.longPress = False
     
     def cgb_drag(self, touch, focus_x, focus_y, delta_x, delta_y):
-        if delta_x**2 + delta_y**2 < self.DRAG_THRESHOLD:
+        if delta_x**2 + delta_y**2 < self.DRAG_THRESHOLD * self.DRAG_THRESHOLD:
             return
         
         self.dragging = True

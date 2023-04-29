@@ -124,8 +124,7 @@ class PenClient():
             exit()
         elif curPos != localPos or self.pressed:
             if self.pressed:
-                localPos[1] = pos[1] * -self.HEIGHT
-                ms.move(self.startPos[0] + localPos[0], self.startPos[1] + localPos[1], absolute = True)
+                ms.move(self.startPos[0] + localPos[0], self.startPos[1] - localPos[1], absolute = True)
                 # print("Moving by: " + str(localX) + ", " + str(startPos[1] + localY))
             else:
                 ms.move(localPos[0], localPos[1], absolute = True)
@@ -133,60 +132,27 @@ class PenClient():
 
     def mouseMove(self, device, position):
         pos = self.remapPos(position)
-        print("Mouse move: " + str(pos))
         
         self.pressed = device == "wm_pen" or device == "wm_touch"
+
+        deltaX = pos[0] - self.dragStart[0]
+        deltaY = pos[1] - self.dragStart[1]
+        
+        print("Mouse move. dx: " + str(deltaX) + ", dy: " + str(deltaY))
 
         if device == "wm_touch":
             if self.pressed:
                 # Only drag if the touch moved enough
-                if abs(float(pos[0]) - self.dragStart[0]) > self.TOUCH_DRAG_THRESHOLD or abs(float(pos[1]) - self.dragStart[1]) > self.TOUCH_DRAG_THRESHOLD:
+                if deltaX**2 + deltaY**2 > self.TOUCH_DRAG_THRESHOLD:
                     self.dragging = True
+                else:
+                    deltaX = 0
+                    deltaY = 0
 
-        x = float(pos[0]) - self.dragStart[0] if self.pressed else float(pos[0])
-        y = float(pos[1]) - self.dragStart[1] if self.pressed else float(pos[1])
+        x = deltaX if self.pressed else pos[0]
+        y = deltaY if self.pressed else pos[1]
 
         self.setCursorPos((x, y))
-
-    # def mouseDown(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-
-
-    #     if device == "wm_pen":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.press(button = 'left')
-    #     elif button == "left":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.press(button = 'left')
-    #     elif button == "right":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.press(button = 'right')
-    #     elif button == "middle":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.press(button = 'middle')
-    #     elif button == "scrolldown":
-    #         ms.wheel(self.MOUSE_SCROLL_SPEED)
-    #     elif button == "scrollup":
-    #         ms.wheel(-self.MOUSE_SCROLL_SPEED)
-
-    # def mouseUp(self, pos, button, device, scrolling, doubleTap, tripleTap, shapeW, shapeH):
-    #     if device == "wm_touch" and not self.dragging:
-    #         if doubleTap == "True":
-    #             ms.click(button = 'right')
-    #         elif tripleTap == "True":
-    #             ms.click(button = 'middle')
-    #         else:
-    #             ms.click(button = 'left')
-    #     elif button == "None" or device == "wm_pen":
-    #         ms.release(button = 'left')
-    #     elif button == "left":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.release(button = 'left')
-    #     elif button == "right":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.release(button = 'right')
-    #     elif button == "middle":
-    #         self.setCursorPos(float(pos[0]), float(pos[1]))
-    #         ms.release(button = 'middle')
 
     # Simualate a click
     def click(self, button, touch):
@@ -208,12 +174,11 @@ class PenClient():
             print("Mouse down: " + button)
         else:
             device = touch["device"]
-            pos = self.remapPos(touch["pos"])
             
             if device == "wm_pen" or device == "wm_touch":
                 if not self.pressed:
                     self.startPos = ms.get_position()
-                    self.dragStart = (float(pos[0]), float(pos[1]))
+                    self.dragStart = self.remapPos(touch["pos"])
 
                 self.pressed = True
             else:
@@ -227,9 +192,11 @@ class PenClient():
             print("Mouse up: " + button)
         else:
             device = touch["device"]
+            
             if device == "wm_pen" or device == "wm_touch":
                 self.pressed = False
                 self.dragging = False
+            
             ms.release(button = button)
 
     # Simulate horizontal and vertical scrolling
@@ -305,23 +272,31 @@ class PenClient():
                 self.click(button = 'middle', touch = touch0)
 
             elif inputType == "LongPressDown":
-                # print("TouchClick: " + str(jsonData))
-
-                self.mouseDown(button = 'left', touch = touch0)
-                # print("Long press started")
+                # Only called when a long press drag STARTS!!
+                
+                # print("LongPressDrag Started: " + str(jsonData))
+                
+                if touch0["device"] != "mouse":
+                    self.mouseDown(button = 'left', touch = touch0)
+                    # print("Long press started")
 
             elif inputType == "LongPressUp":
                 # print("LongPressUp: " + str(jsonData))
                 
-                if jsonData["fromDrag"] == True:
-                    self.mouseUp(button = 'left', touch = touch0)
-                else:
-                    self.click(button = 'right', touch = touch0)
+                if touch0["device"] != "mouse":
+                    if jsonData["fromDrag"] == True:
+                        self.mouseUp(button = 'left', touch = touch0)
+                    else:
+                        self.click(button = 'right', touch = touch0)
 
             elif inputType == "Drag":
                 print("Drag: " + str(jsonData))
                 
-                self.mouseMove(touch0["device"], jsonData["pos"])
+                if not self.dragging:
+                    self.dragging = True
+                    self.dragStart = self.remapPos(touch0["pos"])
+                
+                self.mouseMove(touch0["device"], touch0["pos"])
 
             elif inputType == "Scroll":
                 # print("Scroll: " + str(jsonData))
@@ -352,7 +327,7 @@ class PenClient():
         return min2 + (max2 - min2) * ((val - min1) / (max1 - min1))
 
     def remapPos(self, pos):
-        return (self.remap(pos[0], 0, self.sourceSize[0], 0, self.WIDTH), self.HEIGHT - self.remap(pos[1], 0, self.sourceSize[1], 0, self.HEIGHT))
+        return (self.remap(pos[0], 0, self.sourceSize[0], 0, self.WIDTH), self.remap(pos[1], 0, self.sourceSize[1], self.HEIGHT, 0))
 
     def askYesNoQuestion(self, question):
         answer = str.lower(input(question + " (y/n) "))
