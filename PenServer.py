@@ -200,8 +200,8 @@ class PenInputApp(App):
         print("Client is ready. Starting to send input data")
     
     def sendDataToClient(self, type, touch0, touch1, otherData):
-        if (self.clientSocket == None or self.socketClosed()):
-            if not self.started:
+        if (self.clientSocket == None or self.socketClosed() or not self.started):
+            if self.started:
                 self.openSocket()
             
             return
