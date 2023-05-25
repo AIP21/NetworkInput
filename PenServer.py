@@ -154,7 +154,7 @@ class PenInputApp(App):
     def openSocket(self):
         print("Starting server at: " + self.host + " on port: " + str(self.port))
         
-        waitThread = threading.Thread(target = self.waitConnect)
+        self.waitThread = threading.Thread(target = self.waitConnect)
         self.waitThread.start()
         
         print("Server started")
