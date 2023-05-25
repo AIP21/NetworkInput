@@ -31,7 +31,7 @@ class InputWidget(Screen, CommonGestures):
         
         self.layout = BoxLayout(orientation = 'vertical')
         self.ipLabel = Label(text = "Host IP: " + hostIP + "     Host Port: " + hostPort)
-        self.connectionStatus = Label(text = "No client connected")
+        self.connectionStatus = Label(text = "Waiting for client to connect")
         
         self.layout.add_widget(self.ipLabel)
         self.layout.add_widget(self.connectionStatus)
@@ -159,6 +159,9 @@ class PenInputApp(App):
     def openSocket(self):
         print("Starting server at: " + self.host + " on port: " + str(self.port))
         
+        self.inputWidget.updateIPInfo(self.host, str(self.port))
+        self.inputWidget.updateStatusText("Waiting for client to connect")
+        
         self.waitThread = threading.Thread(target = self.waitConnect)
         self.waitThread.start()
         
@@ -203,18 +206,11 @@ class PenInputApp(App):
     
     def socketClosed(self) -> bool:
         try:
-            # this will try to read bytes without blocking and also without removing them from buffer (peek only)
-            data = self.clientSocket.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK)
-            if len(data) == 0:
-                return True
-        except BlockingIOError:
-            return False  # socket is open and reading from it would block
-        except ConnectionResetError:
-            return True  # socket was closed for some other reason
-        except Exception as e:
-            logger.exception("unexpected exception when checking if a socket is closed")
+            self.clientSocket.send("IGNORE")
             return False
-        return False
+        except:
+            return True
+
     #endregion
     
     #region Input Data
