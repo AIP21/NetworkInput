@@ -6,6 +6,6 @@
     "Touch_Drag_Threshold": 0.1,
     "Touch_Trackpad_Speed": 1.0,
     "Enable_Failsafe": false,
-    "Last_IP": "192.168.0.128",
+    "Last_IP": "192.168.0.154",
     "Last_Port": 9090
 }

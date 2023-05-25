@@ -15,7 +15,7 @@ except:
 
 class PenClient():
     # Debug mode just makes the program print received data instead of manipulate the mouse
-    DEBUG_MODE = False
+    DEBUG_MODE = True
 
     pressed = False
     dragging = False
