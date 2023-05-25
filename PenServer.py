@@ -11,23 +11,29 @@ from kivy.uix.screenmanager import ScreenManager, Screen
 from gestures4kivy import CommonGestures
 import threading
 import json
+import logging
 
 Config.set('input', 'mouse', 'mouse, multitouch_on_demand')
+logger = logging.getLogger(__name__)
 
 class InputWidget(Screen, CommonGestures):
-    clientSocket = None
+    main = None
     
     dragging = False
     longPress = False
     
     DRAG_THRESHOLD = 2
     
-    def __init__(self, hostIP, hostPort, **args):
+    def __init__(self, main, hostIP, hostPort, **args):
         super().__init__(**args)
         
-        self.label = Label(text = "Host IP: " + hostIP + "     Host Port: " + hostPort)
+        self.main = main
         
-        self.add_widget(self.label)
+        self.ipLabel = Label(text = "Host IP: " + hostIP + "     Host Port: " + hostPort)
+        self.connectionStatus = Label(text = "No client connected")
+        
+        self.add_widget(self.ipLabel)
+        self.add_widget(self.connectionStatus)
     
     #region Input Methods
     def on_mouse_pos(self, instance, pos):
@@ -108,6 +114,98 @@ class InputWidget(Screen, CommonGestures):
             self.sendDataToClient("Zoom", touch0, touch1, [("centerPos", (focus_x, focus_y)), ("deltaScale", delta_scale)])
     #endregion
     
+    #region Info
+    def connected(self, connectionIP, connectionPort, connectionName):
+        self.updateStatusText("Connected to: " + connectionIP + ":" + connectionPort + " (" + connectionName + ")")
+        
+    def updateStatusText(self, newStatus):
+        self.connectionStatus.text = newStatus
+    
+    def updateIPInfo(self, hostIP, hostPort):
+        self.ipLabel.text = "Host IP: " + hostIP + "     Host Port: " + hostPort
+    #endregion
+
+class PenInputApp(App):
+    clientSocket = None
+    stopping = False
+    
+    def build(self):
+        self.sm = ScreenManager()
+        
+        self.host = str(socket.gethostbyname(socket.gethostname()))
+        self.port = 9090
+                
+        self.inputWidget = InputWidget(main = self, hostIP = self.host, hostPort = str(self.port))
+        Window.bind(mouse_pos = self.inputWidget.on_mouse_pos)
+        
+        self.sm.add_widget(self.inputWidget)
+        
+        self.openSocket()
+        
+        return self.sm
+    
+    def on_stop(self):
+        if self.clientSocket != None:
+            self.clientSocket.close()
+        
+        self.stopping = True
+    
+    #region Networking
+    def openSocket(self):
+        print("Starting server at: " + self.host + " on port: " + str(self.port))
+        
+        waitThread = threading.Thread(target = self.waitConnect)
+        self.waitThread.start()
+        
+        print("Server started")
+    
+    def waitConnect(self):
+        s = socket.socket()
+        s.bind((self.host, self.port))
+        
+        print("Waiting for client to connect")
+        
+        s.listen(1)
+        
+        self.clientSocket, addr = s.accept()
+        
+        # Get connection info (client ip, port, client name)
+        info = self.clientSocket.getpeername()
+        clientName = socket.getfqdn(info[0])
+        
+        print("Connection from: " + str(info) + ", " + str(clientName))
+        
+        self.inputWidget.connected(str(info[0]), str(info[1]), str(clientName))
+        
+        print("Client is ready. Starting to send input data")
+    
+    def sendDataToClient(self, type, touch0, touch1, otherData):
+        if (self.clientSocket == None or self.socketClosed()):
+            
+            return
+        
+        data = self.compileDataIntoJson(type, touch0,touch1, otherData)
+
+        jsobObj = json.dumps(data, indent = 4)
+        
+        self.clientSocket.send(jsobObj.encode('utf-8'))
+    
+    def socketClosed(self) -> bool:
+        try:
+            # this will try to read bytes without blocking and also without removing them from buffer (peek only)
+            data = self.clientSocket.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK)
+            if len(data) == 0:
+                return True
+        except BlockingIOError:
+            return False  # socket is open and reading from it would block
+        except ConnectionResetError:
+            return True  # socket was closed for some other reason
+        except Exception as e:
+            logger.exception("unexpected exception when checking if a socket is closed")
+            return False
+        return False
+    #endregion
+    
     #region Input Data
     def touchInfo(self, touch):
         if touch == None:
@@ -134,65 +232,7 @@ class InputWidget(Screen, CommonGestures):
             dataDict[pair[0]] = pair[1]
         
         return dataDict
-    
-    def sendDataToClient(self, type, touch0, touch1, otherData):
-        if (self.clientSocket == None):
-            return
-        
-        data = self.compileDataIntoJson(type, touch0,touch1, otherData)
-
-        jsobObj = json.dumps(data, indent = 4)
-        
-        self.clientSocket.send(jsobObj.encode('utf-8'))
     #endregion
-
-class PenInputApp(App):
-    clientSocket = None
-    stopping = False
-    
-    def build(self):
-        self.sm = ScreenManager()
-        
-        self.host = str(socket.gethostbyname(socket.gethostname()))
-        self.port = 9090
-        
-        print("Server started at: " + self.host + " on port: " + str(self.port))
-        
-        self.inputWidget = InputWidget(hostIP = self.host, hostPort = str(self.port))
-        Window.bind(mouse_pos = self.inputWidget.on_mouse_pos)
-        
-        self.sm.add_widget(self.inputWidget)
-        
-        self.waitThread = threading.Thread(target = self.waitConnect)
-        self.waitThread.start()
-        
-        return self.sm
-        
-    def on_stop(self):
-        if self.clientSocket != None:
-            self.clientSocket.close()
-        
-        self.stopping = True
-    
-    def waitConnect(self):
-        s = socket.socket()
-        s.bind((self.host, self.port))
-        
-        print("Waiting for client to connect")
-        
-        s.listen(1)
-        
-        self.clientSocket, addr = s.accept()
-        
-        # Get connection info (client ip, port, client name)
-        info = self.clientSocket.getpeername()
-        clientName = socket.getfqdn(info[0])
-        
-        print("Connection from: " + str(info) + ", " + str(clientName))
-        
-        self.inputWidget.clientSocket = self.clientSocket
-        
-        print("Client is ready. Starting to send input data")
 
 if __name__ == "__main__":
     PenInputApp().run()
