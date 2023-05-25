@@ -29,33 +29,36 @@ class InputWidget(Screen, CommonGestures):
         
         self.main = main
         
+        self.layout = BoxLayout(orientation = 'vertical')
         self.ipLabel = Label(text = "Host IP: " + hostIP + "     Host Port: " + hostPort)
         self.connectionStatus = Label(text = "No client connected")
         
-        self.add_widget(self.ipLabel)
-        self.add_widget(self.connectionStatus)
+        self.layout.add_widget(self.ipLabel)
+        self.layout.add_widget(self.connectionStatus)
+        
+        self.add_widget(self.layout)
     
     #region Input Methods
     def on_mouse_pos(self, instance, pos):
         # print("MouseHover")
         
-        self.sendDataToClient("MouseHover", None, None, [("pos", pos)])
+        self.main.sendDataToClient("MouseHover", None, None, [("pos", pos)])
     
     def on_touch_down(self, touch):
         # print("ClickDown")
         
         if touch.button == 'middle':
-            self.sendDataToClient("Click", touch, None, [])
+            self.main.sendDataToClient("Click", touch, None, [])
         
         if touch.device == 'mouse':
-            self.sendDataToClient("TouchDown", touch, None, [])
+            self.main.sendDataToClient("TouchDown", touch, None, [])
         
         super().on_touch_down(touch)
     
     def on_touch_up(self, touch):
         # print("ClickUp")
         
-        # self.sendDataToClient("ClickUp", touch, None, [])
+        # self.main.sendDataToClient("ClickUp", touch, None, [])
         self.dragging = False
         
         super().on_touch_up(touch)
@@ -63,12 +66,12 @@ class InputWidget(Screen, CommonGestures):
     def cgb_primary(self, touch, focus_x, focus_y):
         # print("ClickPrimary")
         
-        self.sendDataToClient("Click", touch, None, [])
+        self.main.sendDataToClient("Click", touch, None, [])
     
     def cgb_secondary(self, touch, focus_x, focus_y):
         # print("ClickSecondary")
         
-        self.sendDataToClient("Click", touch, None, [])
+        self.main.sendDataToClient("Click", touch, None, [])
         
     def cgb_select(self, touch, focus_x, focus_y, long_press):
         # print("TouchClick: " + str(long_press))
@@ -79,7 +82,7 @@ class InputWidget(Screen, CommonGestures):
     def cgb_long_press_end(self, touch, focus_x, focus_y):
         # print("Long press" + (" DRAG" if self.dragging else "") +  " ended")
             
-        self.sendDataToClient("LongPressUp", touch, None, [("fromDrag", self.dragging)])
+        self.main.sendDataToClient("LongPressUp", touch, None, [("fromDrag", self.dragging)])
 
         self.dragging = False
         self.longPress = False
@@ -92,26 +95,26 @@ class InputWidget(Screen, CommonGestures):
         
         if self.longPress:
             self.longPress = False
-            self.sendDataToClient("LongPressDown", touch, None, [])
+            self.main.sendDataToClient("LongPressDown", touch, None, [])
         
         # print("Drag")
         
-        self.sendDataToClient("Drag", touch, None, [("deltaX", delta_x), ("deltaY", delta_y)])
+        self.main.sendDataToClient("Drag", touch, None, [("deltaX", delta_x), ("deltaY", delta_y)])
     
     def cgb_scroll(self, touch, focus_x, focus_y, delta_y, velocity):
         if not self.dragging:
             # print("Scroll")
-            self.sendDataToClient("Scroll", touch, None, [("deltaY", delta_y), ("vel", velocity)])
+            self.main.sendDataToClient("Scroll", touch, None, [("deltaY", delta_y), ("vel", velocity)])
     
     def cgb_pan(self, touch, focus_x, focus_y, delta_x, velocity):
         if not self.dragging:
             # print("Pan")
-            self.sendDataToClient("Pan", touch, None, [("deltaX", delta_x), ("vel", velocity)])
+            self.main.sendDataToClient("Pan", touch, None, [("deltaX", delta_x), ("vel", velocity)])
     
     def cgb_zoom(self, touch0, touch1, focus_x, focus_y, delta_scale):
         if not self.dragging:
             # print("Zoom")
-            self.sendDataToClient("Zoom", touch0, touch1, [("centerPos", (focus_x, focus_y)), ("deltaScale", delta_scale)])
+            self.main.sendDataToClient("Zoom", touch0, touch1, [("centerPos", (focus_x, focus_y)), ("deltaScale", delta_scale)])
     #endregion
     
     #region Info
