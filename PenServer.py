@@ -132,6 +132,8 @@ class PenInputApp(App):
     clientSocket = None
     stopping = False
     
+    s = None
+    
     def build(self):
         self.sm = ScreenManager()
         
@@ -163,14 +165,20 @@ class PenInputApp(App):
         print("Server started")
     
     def waitConnect(self):
-        s = socket.socket()
-        s.bind((self.host, self.port))
+        if self.s != None:
+            self.s.close()
+        
+        if self.clientSocket != None:
+            self.clientSocket.close()
+        
+        self.s = socket.socket()
+        self.s.bind((self.host, self.port))
         
         print("Waiting for client to connect")
         
-        s.listen(1)
+        self.s.listen(1)
         
-        self.clientSocket, addr = s.accept()
+        self.clientSocket, addr = self.s.accept()
         
         # Get connection info (client ip, port, client name)
         info = self.clientSocket.getpeername()
@@ -184,7 +192,7 @@ class PenInputApp(App):
     
     def sendDataToClient(self, type, touch0, touch1, otherData):
         if (self.clientSocket == None or self.socketClosed()):
-            
+            self.openSocket()
             return
         
         data = self.compileDataIntoJson(type, touch0,touch1, otherData)
@@ -229,7 +237,7 @@ class PenInputApp(App):
         dataDict['type'] = type
         dataDict['touch0'] = self.touchInfo(touch0)
         dataDict['touch1'] = self.touchInfo(touch1)
-        dataDict["screenSize"] = (self.width, self.height)
+        dataDict["screenSize"] = (self.sm.width, self.sm.height)
         
         for pair in otherData:
             dataDict[pair[0]] = pair[1]
