@@ -234,6 +234,10 @@ class PenClient():
     
     # Process data from the server
     def processData(self, inputStr):
+        if "IGNORE" in inputStr:
+            print("Ignoring input: " + inputStr)
+            return
+        
         try:
             # Fix a weird bug where multiple JSON objects are sent at once
             if "}{" in inputStr:
