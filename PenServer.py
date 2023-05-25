@@ -134,6 +134,8 @@ class PenInputApp(App):
     
     s = None
     
+    started = False
+    
     def build(self):
         self.sm = ScreenManager()
         
@@ -168,13 +170,15 @@ class PenInputApp(App):
         print("Server started")
     
     def waitConnect(self):
+        self.started = False
+        
         if self.s != None:
             self.s.close()
         
         if self.clientSocket != None:
             self.clientSocket.close()
         
-        self.s = socket.socket()
+        self.s = socket.socket() #type = socket.SOCK_STREAM)
         self.s.bind((self.host, self.port))
         
         print("Waiting for client to connect")
@@ -191,11 +195,15 @@ class PenInputApp(App):
         
         self.inputWidget.connected(str(info[0]), str(info[1]), str(clientName))
         
+        self.started = True
+        
         print("Client is ready. Starting to send input data")
     
     def sendDataToClient(self, type, touch0, touch1, otherData):
         if (self.clientSocket == None or self.socketClosed()):
-            self.openSocket()
+            if not self.started:
+                self.openSocket()
+            
             return
         
         data = self.compileDataIntoJson(type, touch0,touch1, otherData)
@@ -210,7 +218,6 @@ class PenInputApp(App):
             return False
         except:
             return True
-
     #endregion
     
     #region Input Data
