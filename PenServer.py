@@ -136,6 +136,8 @@ class PenInputApp(App):
     
     started = False
     
+    waitThread = None
+    
     # attemptNum = 1
     
     def build(self):
@@ -156,9 +158,6 @@ class PenInputApp(App):
     def on_stop(self):
         self.closeSockets();
         
-        if self.waitThread != None:
-            self.waitThread.join()
-        
         self.stopping = True
         
         print("Stopping server")
@@ -171,6 +170,11 @@ class PenInputApp(App):
         self.inputWidget.updateIPInfo(self.host, str(self.port))
         self.inputWidget.updateStatusText("Waiting for client to connect")
         
+        self.closeSockets();
+        
+        if self.waitThread != None:
+            self.waitThread.join()
+        
         self.waitThread = threading.Thread(target = self.waitConnect)
         self.waitThread.start()
         
@@ -178,16 +182,13 @@ class PenInputApp(App):
     
     def closeSockets(self):
         if self.s != None:
-            if not self.socketClosed(self.s):
-                self.s.shutdown(socket.SHUT_RDWR)
-            
             self.s.close()
         
         if self.clientSocket != None:
-            if not self.socketClosed(self.clientSocket):
-                self.clientSocket.shutdown(socket.SHUT_RDWR)
-            
             self.clientSocket.close()
+        
+        if self.waitThread != None:
+            self.waitThread.join()
     
     def waitConnect(self):
         self.started = False
@@ -212,7 +213,7 @@ class PenInputApp(App):
         self.clientSocket, addr = self.s.accept()
         
         self.clientSocket.settimeout(1)
-        self.clientSocket.setblocking(False)
+        # self.clientSocket.setblocking(False)
         
         # Get connection info (client ip, port, client name)
         info = self.clientSocket.getpeername()
@@ -227,17 +228,16 @@ class PenInputApp(App):
         print("Client is ready. Starting to send input data")
     
     def sendDataToClient(self, type, touch0, touch1, otherData):
-        if (self.clientSocket == None or self.socketClosed(self.clientSocket) or not self.started):
-            if self.started:
-                self.openSocket()
-            
-            return
-        
-        data = self.compileDataIntoJson(type, touch0,touch1, otherData)
+        try:
+            data = self.compileDataIntoJson(type, touch0,touch1, otherData)
 
-        jsobObj = json.dumps(data, indent = 4)
-        
-        self.clientSocket.send(jsobObj.encode('utf-8'))
+            jsobObj = json.dumps(data, indent = 4)
+            
+            self.clientSocket.send(jsobObj.encode('utf-8'))
+        except:
+            if not self.stopping and self.started:
+                print("Client disconnected. Waiting for new client")
+                self.waitConnect()
     
     def socketClosed(self, socket) -> bool:
         try:
