@@ -172,7 +172,9 @@ class PenInputApp(App):
         super().on_stop()
     
     #region Networking
-    def openSocket(self):        
+    def openSocket(self):
+        self.started = False
+           
         self.inputWidget.updateIPInfo(self.host, str(self.port))
         self.inputWidget.updateStatusText("Waiting for client to connect")
         
@@ -185,7 +187,7 @@ class PenInputApp(App):
         self.waitThread.start()
         
         print("Server started")
-    
+        
     def closeSockets(self):
         if self.s != None:
             self.s.close()
@@ -219,6 +221,7 @@ class PenInputApp(App):
             # if not self.stopping:
             #     print("Socket timed out. Retrying")
             #     self.waitConnect()
+            print("Socket accept error")
             return
         
         self.clientSocket.settimeout(1)
@@ -246,14 +249,7 @@ class PenInputApp(App):
         except:
             if not self.stopping and self.started:
                 print("Client disconnected. Waiting for new client")
-                self.waitConnect()
-    
-    def socketClosed(self, socket) -> bool:
-        try:
-            socket.send("IGNORE")
-            return False
-        except:
-            return True
+                self.openSocket()
     #endregion
     
     #region Input Data
