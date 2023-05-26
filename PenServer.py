@@ -196,7 +196,6 @@ class PenInputApp(App):
         
         self.s = socket.socket() #type = socket.SOCK_STREAM)
         self.s.bind((self.host, self.port))
-        self.s.setblocking(False)
 
         print("Waiting for client to connect")
         
@@ -211,6 +210,9 @@ class PenInputApp(App):
         # self.attemptNum = 1
         
         self.clientSocket, addr = self.s.accept()
+        
+        self.clientSocket.settimeout(1)
+        self.clientSocket.setblocking(False)
         
         # Get connection info (client ip, port, client name)
         info = self.clientSocket.getpeername()
