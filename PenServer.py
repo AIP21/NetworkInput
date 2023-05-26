@@ -136,6 +136,8 @@ class PenInputApp(App):
     
     started = False
     
+    # attemptNum = 1
+    
     def build(self):
         self.sm = ScreenManager()
         
@@ -152,10 +154,15 @@ class PenInputApp(App):
         return self.sm
     
     def on_stop(self):
-        if self.clientSocket != None:
-            self.clientSocket.close()
+        self.closeSockets();
+        
+        if self.waitThread != None:
+            self.waitThread.join()
         
         self.stopping = True
+        
+        print("Stopping server")
+        super().on_stop()
     
     #region Networking
     def openSocket(self):
@@ -169,21 +176,39 @@ class PenInputApp(App):
         
         print("Server started")
     
-    def waitConnect(self):
-        self.started = False
-        
+    def closeSockets(self):
         if self.s != None:
+            if not self.socketClosed(self.s):
+                self.s.shutdown(socket.SHUT_RDWR)
+            
             self.s.close()
         
         if self.clientSocket != None:
+            if not self.socketClosed(self.clientSocket):
+                self.clientSocket.shutdown(socket.SHUT_RDWR)
+            
             self.clientSocket.close()
+    
+    def waitConnect(self):
+        self.started = False
+        
+        self.closeSockets()
         
         self.s = socket.socket() #type = socket.SOCK_STREAM)
         self.s.bind((self.host, self.port))
-        
+        self.s.setblocking(False)
+
         print("Waiting for client to connect")
         
         self.s.listen(1)
+        
+        # if self.socketClosed(self.s):
+        #     print("Socket timed out. Retrying (attempt: " + str(self.attemptNum) + ")")
+        #     self.attemptNum += 1
+        #     self.waitConnect()
+        #     return
+        
+        # self.attemptNum = 1
         
         self.clientSocket, addr = self.s.accept()
         
@@ -200,7 +225,7 @@ class PenInputApp(App):
         print("Client is ready. Starting to send input data")
     
     def sendDataToClient(self, type, touch0, touch1, otherData):
-        if (self.clientSocket == None or self.socketClosed() or not self.started):
+        if (self.clientSocket == None or self.socketClosed(self.clientSocket) or not self.started):
             if self.started:
                 self.openSocket()
             
@@ -212,9 +237,9 @@ class PenInputApp(App):
         
         self.clientSocket.send(jsobObj.encode('utf-8'))
     
-    def socketClosed(self) -> bool:
+    def socketClosed(self, socket) -> bool:
         try:
-            self.clientSocket.send("IGNORE")
+            socket.send("IGNORE")
             return False
         except:
             return True
