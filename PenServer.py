@@ -20,9 +20,11 @@ class InputWidget(Screen, CommonGestures):
     main = None
     
     dragging = False
-    longPress = False
+    longPressDown = False
     
-    DRAG_THRESHOLD = 2
+    penDown = False
+    
+    DRAG_THRESHOLD = 1
     
     def __init__(self, main, hostIP, hostPort, **args):
         super().__init__(**args)
@@ -40,52 +42,74 @@ class InputWidget(Screen, CommonGestures):
     
     #region Input Methods
     def on_mouse_pos(self, instance, pos):
-        # print("MouseHover")
+        print("MouseHover")
         
         self.main.sendDataToClient("MouseHover", None, None, [("pos", pos)])
     
     def on_touch_down(self, touch):
-        # print("ClickDown")
-        
-        if touch.button == 'middle':
-            self.main.sendDataToClient("Click", touch, None, [])
-        
         if touch.device == 'mouse':
+            print("MouseDown")
+            self.main.sendDataToClient("MouseDown", touch, None, [])
+        elif touch.device == 'wm_pen':
+            print("PenDown")
+            self.main.sendDataToClient("PenDown", touch, None, [])
+            self.penDown = True
+        elif touch.device == 'wm_touch':
+            print("TouchDown")
+            print(touch)
             self.main.sendDataToClient("TouchDown", touch, None, [])
+        else:
+            print(touch.device)
         
         super().on_touch_down(touch)
     
     def on_touch_up(self, touch):
-        # print("ClickUp")
+        if touch.device == 'mouse':
+            print("MouseUp")
+            self.main.sendDataToClient("MouseUp", touch, None, [])
+        elif self.penDown:
+            print("PenUp")
+            self.main.sendDataToClient("PenUp", touch, None, [])
+            self.penDown = False
+        elif touch.device == 'wm_touch':
+            print("TouchUp")
+            self.main.sendDataToClient("TouchUp", touch, None, [])
+        else:
+            print(touch.device)
         
-        # self.main.sendDataToClient("ClickUp", touch, None, [])
         self.dragging = False
         
         super().on_touch_up(touch)
     
-    def cgb_primary(self, touch, focus_x, focus_y):
-        # print("ClickPrimary")
+    # def cgb_primary(self, touch, focus_x, focus_y):
+    #     print("ClickPrimary")
         
-        self.main.sendDataToClient("Click", touch, None, [])
+    #     self.main.sendDataToClient("Click", touch, None, [])
     
-    def cgb_secondary(self, touch, focus_x, focus_y):
-        # print("ClickSecondary")
+    # def cgb_secondary(self, touch, focus_x, focus_y):
+    #     print("ClickSecondary")
         
-        self.main.sendDataToClient("Click", touch, None, [])
-        
+    #     self.main.sendDataToClient("DblClick", touch, None, [])
+    
     def cgb_select(self, touch, focus_x, focus_y, long_press):
-        # print("TouchClick: " + str(long_press))
+        if touch.device == "mouse":
+            return
+        
+        print("Long click: " + str(long_press))
         
         self.dragging = False
-        self.longPress = long_press
+        self.longPressDown = long_press
     
     def cgb_long_press_end(self, touch, focus_x, focus_y):
-        # print("Long press" + (" DRAG" if self.dragging else "") +  " ended")
-            
+        if self.longPressDown == False or self.dragging:
+            return
+        
+        print("Long press" + (" DRAG" if self.dragging else "") +  " ended")
+        
         self.main.sendDataToClient("LongPressUp", touch, None, [("fromDrag", self.dragging)])
 
         self.dragging = False
-        self.longPress = False
+        self.longPressDown = False
     
     def cgb_drag(self, touch, focus_x, focus_y, delta_x, delta_y):
         if delta_x**2 + delta_y**2 < self.DRAG_THRESHOLD * self.DRAG_THRESHOLD:
@@ -93,28 +117,28 @@ class InputWidget(Screen, CommonGestures):
         
         self.dragging = True
         
-        if self.longPress:
-            self.longPress = False
-            self.main.sendDataToClient("LongPressDown", touch, None, [])
+        # Cancel a long press if we start dragging
+        if self.longPressDown:
+            self.longPressDown = False
         
-        # print("Drag")
+        print("Drag")
         
         self.main.sendDataToClient("Drag", touch, None, [("deltaX", delta_x), ("deltaY", delta_y)])
     
     def cgb_scroll(self, touch, focus_x, focus_y, delta_y, velocity):
-        if not self.dragging:
-            # print("Scroll")
-            self.main.sendDataToClient("Scroll", touch, None, [("deltaY", delta_y), ("vel", velocity)])
+        # if not self.dragging:
+        print("Scroll")
+        self.main.sendDataToClient("Scroll", touch, None, [("deltaY", delta_y), ("vel", velocity)])
     
     def cgb_pan(self, touch, focus_x, focus_y, delta_x, velocity):
-        if not self.dragging:
-            # print("Pan")
-            self.main.sendDataToClient("Pan", touch, None, [("deltaX", delta_x), ("vel", velocity)])
+        # if not self.dragging:
+        print("Pan")
+        self.main.sendDataToClient("Pan", touch, None, [("deltaX", delta_x), ("vel", velocity)])
     
     def cgb_zoom(self, touch0, touch1, focus_x, focus_y, delta_scale):
-        if not self.dragging:
-            # print("Zoom")
-            self.main.sendDataToClient("Zoom", touch0, touch1, [("centerPos", (focus_x, focus_y)), ("deltaScale", delta_scale)])
+        # if not self.dragging:
+        print("Zoom")
+        self.main.sendDataToClient("Zoom", touch0, touch1, [("pos", (focus_x, focus_y)), ("deltaScale", delta_scale)])
     #endregion
     
     #region Info
@@ -160,7 +184,7 @@ class PenInputApp(App):
     def on_stop(self):
         print("Stopping server")
         
-        self.closeSockets();
+        self.closeSockets()
         
         self.stopping = True
         
@@ -178,7 +202,7 @@ class PenInputApp(App):
         self.inputWidget.updateIPInfo(self.host, str(self.port))
         self.inputWidget.updateStatusText("Waiting for client to connect")
         
-        self.closeSockets();
+        self.closeSockets()
         
         if self.waitThread != None:
             self.waitThread.join()
