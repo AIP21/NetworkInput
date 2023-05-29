@@ -5,7 +5,8 @@
     "Touch_Scroll_Speed": 1,
     "Touch_Drag_Threshold": 0.1,
     "Touch_Trackpad_Speed": 1.0,
-    "Enable_Failsafe": false,
+    "Enable_Failsafe": true,
     "Last_IP": "192.168.0.154",
-    "Last_Port": 9090
+    "Last_Port": 9090,
+    "Auto_Reconnect": true
 }
