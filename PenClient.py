@@ -16,6 +16,7 @@ except:
 class PenClient():
     # Debug mode just makes the program print received data instead of manipulate the mouse
     DEBUG_MODE = True
+    autoReconnect = False
 
     pressed = False
     dragging = False
@@ -37,6 +38,7 @@ class PenClient():
         "Enable_Failsafe" : True,
         "Last_IP" : "",
         "Last_Port" : 0,
+        "Auto_Reconnect" : False,
     }
 
     def __init__(self, **kwargs):
@@ -54,12 +56,17 @@ class PenClient():
             return
 
         print("Loading settings")
+        
+        try:
+            with open(settingsFilePath, 'r') as settingsfile:
+                # Reading from json file
+                settingsJsonObject = json.load(settingsfile)
 
-        with open(settingsFilePath, 'r') as settingsfile:
-            # Reading from json file
-            settingsJsonObject = json.load(settingsfile)
-
-            settingsfile.close()
+                settingsfile.close()
+        except:
+            print("Error loading settings file. Using default settings")
+            self.setVarsFromSettingsDict(self.settingsDict)
+            return
 
         self.settingsDict = settingsJsonObject
 
@@ -80,6 +87,7 @@ class PenClient():
         self.ENABLE_FAILSAFE = settingsDict["Enable_Failsafe"]
         self.lastIP = settingsDict["Last_IP"]
         self.lastPort = settingsDict["Last_Port"]
+        self.autoReconnect = settingsDict["Auto_Reconnect"]
 
     def saveSettings(self, notify = True):
         # Get local executable path
@@ -339,23 +347,26 @@ class PenClient():
 
         return yes
     #endregion
-    
-    
+
     def client(self):
         if self.hasSettings:
             print("Loaded saved IP: " + self.lastIP + " with port: " + str(self.lastPort))
 
-            useOldVals = self.askYesNoQuestion("Use these values?")
+            if not self.autoReconnect:
+                useOldVals = self.askYesNoQuestion("Use these values?")
 
-            if useOldVals:
+                if useOldVals:
+                    host = self.lastIP
+                    port = self.lastPort
+                else:
+                    host = input("Enter server IP: ")
+                    port = int(input("Enter server port: "))
+
+                    if self.askYesNoQuestion("Save these values?"):
+                        self.saveAddressAndPort(host, port)
+            else:
                 host = self.lastIP
                 port = self.lastPort
-            else:
-                host = input("Enter server IP: ")
-                port = int(input("Enter server port: "))
-
-                if self.askYesNoQuestion("Save these values?"):
-                    self.saveAddressAndPort(host, port)
         else:
             print("No saved file found, please enter the server IP and port")
             host = input("Enter server IP: ")
@@ -388,7 +399,7 @@ class PenClient():
 
         serverSocket.close()
 
-        if self.askYesNoQuestion("Reconnect?"):
+        if self.autoReconnect or self.askYesNoQuestion("Reconnect?"):
             print("")
             self.client()
         else:

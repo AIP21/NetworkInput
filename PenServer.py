@@ -245,7 +245,7 @@ class PenInputApp(App):
             # if not self.stopping:
             #     print("Socket timed out. Retrying")
             #     self.waitConnect()
-            print("Socket accept error")
+            # print("Socket accept error")
             return
         
         self.clientSocket.settimeout(1)
